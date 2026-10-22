@@ -4,6 +4,8 @@
 
 Built from a real troubleshooting problem: an n8n process could pass its readiness check while an active workflow had no registered webhook. A process-only uptime check missed the failure. This project combines independent health signals and pushes sanitized snapshots to an external dashboard.
 
+The original use case was an expense automation system with Telegram input, Supabase storage, and a scheduled n8n workflow that synced transactions to **Google Sheets**. This repository contains the monitoring layer for that system, not the expense-processing or spreadsheet-sync workflows themselves.
+
 JavaScript · Node.js 24 · Cloudflare Workers · D1 / SQLite · Windows Task Scheduler
 
 ## Try it without credentials
@@ -45,6 +47,17 @@ The computer initiates outbound HTTPS; the external dashboard never opens an inb
 | Supabase | DNS lookup and HTTPS response | HTTP 401/403 proves reachability, not write access |
 
 Hourly history stores the worst observed status and coverage metadata. Incomplete coverage is not painted green. The current hour is shown separately from historical events, and every color has a visible legend.
+
+## Where Google Sheets fits
+
+```text
+Telegram → n8n expense capture → Supabase
+Supabase → scheduled n8n sync workflow → Google Sheets
+```
+
+The dashboard reads the **12 most recent n8n executions across workflows**. When a Google Sheets sync run is in that window, its result appears in the execution list with its workflow name, success/error status, timestamp, and failed node or sanitized error code when available. The execution link opens the corresponding n8n run for investigation.
+
+Google Sheets is therefore monitored **indirectly through n8n execution results**. It is not a seventh health-check card. The collector does not call the Google Sheets API, access spreadsheet contents, or require Google credentials. A successful sync execution alone does not independently prove that the expected rows are present in the sheet; checking row counts or detecting a missed sync schedule would require additional monitoring. Busy workflows may also push a sync run out of the latest-12 list.
 
 ## Engineering choices
 
