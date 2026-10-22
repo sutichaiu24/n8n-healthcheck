@@ -1,0 +1,4 @@
+{
+  "endpoint": "https://health.example.com/api/ingest",
+  "ingestToken": "REPLACE_WITH_A_RANDOM_32_BYTE_SECRET"
+}

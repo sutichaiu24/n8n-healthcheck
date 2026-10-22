@@ -1,0 +1,11 @@
+{
+  "name": "n8n-healthcheck",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-16",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "health.example.com", "custom_domain": true }],
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": true },
+  "observability": { "enabled": false },
+  "d1_databases": [{ "binding": "DB", "database_name": "n8n-healthcheck", "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID" }]
+}

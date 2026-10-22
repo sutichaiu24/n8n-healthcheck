@@ -1,0 +1,11 @@
+# Viewer authentication
+
+The deployed dashboard uses a normal HTML login form instead of HTTP Basic prompts. The username and existing `VIEW_TOKEN` password are unchanged. `/api/ingest` continues using the independent agent bearer token and does not require a viewer session.
+
+Selecting **จำฉันไว้ 30 วัน** issues a 30-day `__Host-expense_health` cookie with `Secure`, `HttpOnly`, `SameSite=Lax`, and `Path=/`. Without the selection, the cookie has no persistent Max-Age and the server session expires after at most 12 hours. Browser privacy settings may clear cookies earlier. Password fields support normal browser password-manager autocomplete.
+
+Session tokens are cryptographically random 32-byte values. D1 stores only SHA-256 hashes, expiry timestamps, and a hash tied to the current viewer credential. Changing the viewer password invalidates existing sessions. POST `/logout` deletes the session from D1 as well as expiring the browser cookie. A 401 from the dashboard API redirects the user to the login page.
+
+Login and logout POSTs require a matching Origin. If a browser privacy policy removes Origin or sends `null`, the request is accepted only when browser-controlled Fetch Metadata says `Sec-Fetch-Site: same-origin`. An explicitly different Origin always fails; cross-site and same-site sibling requests never qualify for the fallback. Login and dashboard pages use `Referrer-Policy: same-origin`, preserving normal form Origin behavior while withholding referrers across sites. Login input is size limited and successful logins rotate to a fresh token. Login attempts are rate limited per hashed source IP in 15-minute windows; no plaintext IP or password is stored in these tables. Errors and responses are not cached, and there is no WWW-Authenticate header to trigger the former browser popup.
+
+Apply `schema.sql` before deploying this version; its additions are idempotent and do not delete monitoring history. Tests in `auth.test.mjs` use real in-memory SQLite to cover persistence, expiry, remember duration, invalid credentials, cookie tampering, password rotation, origin checks, rate limiting, and logout revocation. `verify-login.mjs` exercises the deployed login without printing credentials or cookies and revokes its temporary test session when finished.
