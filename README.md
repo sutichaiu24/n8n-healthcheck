@@ -19,28 +19,38 @@ Open **http://127.0.0.1:8788**. The demo is clearly labeled and uses generated d
 
 ## Architecture
 
+### 1. Expense automation
+
+Read from top to bottom: a message becomes a stored transaction, then a scheduled workflow copies transactions to Google Sheets.
+
 ```mermaid
-flowchart LR
-  subgraph Computer[Monitored computer]
-    N8N[n8n workflows + readiness endpoint]
-    LocalDB[(Local SQLite: webhooks + execution history)]
-    Agent[Read-only Node.js agent]
-    N8N -->|Record workflow results| LocalDB
-    Agent -.->|Readiness check| N8N
-    Agent -.->|Read webhook routes + recent executions| LocalDB
-  end
-  Telegram[Telegram API] -->|Expense messages| N8N
-  N8N -->|Bot replies| Telegram
-  N8N <-->|Write transactions / read rows for sync| Supabase[Supabase]
-  N8N -->|Scheduled transaction sync| Sheets[Google Sheets]
-  Agent -.->|getWebhookInfo| Telegram
-  Agent -.->|DNS + HTTPS reachability| Supabase
-  Agent -->|Authenticated heartbeat / 60 seconds| Worker[Cloudflare Worker]
-  Worker --> D1[(D1: latest snapshot + hourly history)]
-  Browser[Authenticated browser] --> Worker
+flowchart TD
+  A["Telegram<br/>Send an expense message"]
+  B["n8n expense workflow<br/>Parse and validate"]
+  C[("Supabase<br/>Store transactions")]
+  D["n8n scheduled sync<br/>Read unsynced transactions"]
+  E["Google Sheets<br/>Write transaction rows"]
+  A --> B --> C --> D --> E
 ```
 
-Solid arrows show automation and dashboard data flows; dotted arrows show read-only monitoring. Google Sheets sync is performed by n8n. The agent observes its recorded execution result in SQLite rather than calling the Sheets API directly.
+The expense workflow also replies to Telegram. n8n records workflow results in its local SQLite database; the health agent reads those results, including Google Sheets sync runs.
+
+### 2. Health monitoring
+
+The agent pushes health snapshots outward. The dashboard and its database live outside the monitored computer.
+
+```mermaid
+flowchart TD
+  Agent["HOME COMPUTER<br/>Read-only Node.js agent<br/>n8n + SQLite + Telegram + Supabase"]
+  Worker["CLOUDFLARE WORKER<br/>Authenticate requests<br/>Validate health snapshots"]
+  DB[("D1 DATABASE<br/>Latest status + hourly history")]
+  Page["BROWSER DASHBOARD<br/>Login and view status"]
+  Agent -->|"HTTPS push every 60 seconds"| Worker
+  Worker <-->|"Store / read"| DB
+  Worker -->|"Authenticated status response"| Page
+```
+
+The browser requests `/api/health` from the Worker after login. It does not read D1 or contact the home computer directly. Google Sheets is observed through n8n execution history, not a direct Sheets API health probe.
 
 The computer initiates outbound HTTPS; the external dashboard never opens an inbound database connection. It remains reachable independently of the monitored machine. A snapshot older than three minutes is marked **unknown / disconnected**, rather than leaving old green results visible.
 
