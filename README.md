@@ -22,16 +22,25 @@ Open **http://127.0.0.1:8788**. The demo is clearly labeled and uses generated d
 ```mermaid
 flowchart LR
   subgraph Computer[Monitored computer]
+    N8N[n8n workflows + readiness endpoint]
+    LocalDB[(Local SQLite: webhooks + execution history)]
     Agent[Read-only Node.js agent]
-    N8N[n8n readiness + SQLite]
-    Agent --> N8N
+    N8N -->|Record workflow results| LocalDB
+    Agent -.->|Readiness check| N8N
+    Agent -.->|Read webhook routes + recent executions| LocalDB
   end
-  Agent -->|getWebhookInfo| Telegram[Telegram API]
-  Agent -->|DNS + HTTPS reachability| Supabase[Supabase]
+  Telegram[Telegram API] -->|Expense messages| N8N
+  N8N -->|Bot replies| Telegram
+  N8N <-->|Write transactions / read rows for sync| Supabase[Supabase]
+  N8N -->|Scheduled transaction sync| Sheets[Google Sheets]
+  Agent -.->|getWebhookInfo| Telegram
+  Agent -.->|DNS + HTTPS reachability| Supabase
   Agent -->|Authenticated heartbeat / 60 seconds| Worker[Cloudflare Worker]
   Worker --> D1[(D1: latest snapshot + hourly history)]
   Browser[Authenticated browser] --> Worker
 ```
+
+Solid arrows show automation and dashboard data flows; dotted arrows show read-only monitoring. Google Sheets sync is performed by n8n. The agent observes its recorded execution result in SQLite rather than calling the Sheets API directly.
 
 The computer initiates outbound HTTPS; the external dashboard never opens an inbound database connection. It remains reachable independently of the monitored machine. A snapshot older than three minutes is marked **unknown / disconnected**, rather than leaving old green results visible.
 
